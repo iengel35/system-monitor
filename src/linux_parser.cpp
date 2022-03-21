@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <iostream>
 #include <unistd.h>
 #include <string>
 #include <vector>
@@ -10,7 +11,24 @@ using std::string;
 using std::to_string;
 using std::vector;
 
-// DONE: An example of how to read data from the filesystem
+
+// A helper function to return the value (as a string) specified by @p label
+// in a file at @p os_path.
+string LinuxParser::GetValueFromKey(string label, string os_path) {
+  string line, key, value;
+  std::ifstream stream(os_path);
+  if (stream.is_open()) {
+    while (std::getline(stream, line)) {
+      std::istringstream linestream(line);
+      linestream >> key >> value;
+      if (key == label) {
+        return value;
+      }
+    }
+  }
+}
+
+// An example of how to read data from the filesystem
 string LinuxParser::OperatingSystem() {
   string line;
   string key;
@@ -33,7 +51,7 @@ string LinuxParser::OperatingSystem() {
   return value;
 }
 
-// DONE: An example of how to read data from the filesystem
+// An example of how to read data from the filesystem
 string LinuxParser::Kernel() {
   string os, version, kernel;
   string line;
@@ -66,33 +84,124 @@ vector<int> LinuxParser::Pids() {
   return pids;
 }
 
-// TODO: Read and return the system memory utilization
-float LinuxParser::MemoryUtilization() { return 0.0; }
+// Read and return the system memory utilization
+float LinuxParser::MemoryUtilization() {
+  int total_memory, free_memory;
+  float memory_utilization;
+  string line, key, value;
+  std::ifstream stream(kProcDirectory + kMeminfoFilename);
+  if (stream.is_open()) {
+    while (std::getline(stream, line)) {
+      std::istringstream linestream(line);
+      linestream >> key >> value;
+      if (key == "MemTotal:")
+        total_memory = std::stoi(value);
+      else if (key == "MemFree:") {
+        free_memory =  std::stoi(value);
+        break;  // No need to check more lines
+      }
+    }
+  }
+  memory_utilization = (total_memory - free_memory) / (float)total_memory;
+  return memory_utilization;
+}
 
-// TODO: Read and return the system uptime
-long LinuxParser::UpTime() { return 0; }
+// Read and return the system uptime
+long int LinuxParser::UpTime() {
+  string line;
+  long int uptime;
+  string os_path = kProcDirectory + kUptimeFilename;
+  std::ifstream stream(kProcDirectory + kUptimeFilename);
+  if (stream.is_open()) {
+    std::getline(stream, line);
+    std::istringstream linestream(line);
+    linestream >> uptime;
+  }
+  return uptime;
+}
 
-// TODO: Read and return the number of jiffies for the system
-long LinuxParser::Jiffies() { return 0; }
+// Returns array of aggregate jiffy values
+long int* LinuxParser::GetCPUJiffies(long int* jiffy_array) {
+  string line, label;
+  std::ifstream stream(kProcDirectory + kStatFilename);
+  if (stream.is_open()) {
+    std::getline(stream, line);
+    std::istringstream linestream(line);
+    linestream >> label;
+    for (int i=0; i < 10; i++)
+      linestream >> jiffy_array[i];
+  }
+  return jiffy_array;
+}
+
+// Read and return the number of jiffies for the system
+long LinuxParser::Jiffies() {
+  long int jiffy_array[10];
+  GetCPUJiffies(jiffy_array);
+  return ActiveJiffies(jiffy_array) + IdleJiffies(jiffy_array);
+}
 
 // TODO: Read and return the number of active jiffies for a PID
 // REMOVE: [[maybe_unused]] once you define the function
 long LinuxParser::ActiveJiffies(int pid[[maybe_unused]]) { return 0; }
 
-// TODO: Read and return the number of active jiffies for the system
-long LinuxParser::ActiveJiffies() { return 0; }
+// Read and return the number of active jiffies for the system
+long LinuxParser::ActiveJiffies() {
+  long int jiffy_array[10];
+  GetCPUJiffies(jiffy_array);
+  return ActiveJiffies(jiffy_array);
+}
 
-// TODO: Read and return the number of idle jiffies for the system
-long LinuxParser::IdleJiffies() { return 0; }
+long LinuxParser::ActiveJiffies(long int* jiffy_array) {
+  // active = user + nice + system + irq + softirq + steal
+  // https://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
+  int active_idx[6] = {0, 1, 2, 5, 6, 7};
+  long int active_jiffies = 0;
+  for (int idx: active_idx)
+    active_jiffies += jiffy_array[idx];
+  return active_jiffies;
+}
 
-// TODO: Read and return CPU utilization
-vector<string> LinuxParser::CpuUtilization() { return {}; }
+// Read and return the number of idle jiffies for the system
+long LinuxParser::IdleJiffies(long int* jiffy_array) {
+  // idle = idle + iowait
+  // https://stackoverflow.com/questions/23367857/accurate-calculation-of-cpu-usage-given-in-percentage-in-linux
+  long idle_jiffies = 0;
+  idle_jiffies += jiffy_array[3];
+  idle_jiffies += jiffy_array[4];
+  return idle_jiffies;
+}
 
-// TODO: Read and return the total number of processes
-int LinuxParser::TotalProcesses() { return 0; }
+// Read and return CPU utilization
+//vector<string> LinuxParser::CpuUtilization() {
+float LinuxParser::CpuUtilization() {
+  static long prev_total_jiffies = 0;
+  static long prev_active_jiffies = 0;
+  long total_jiffies = Jiffies();
+  long total_active_jiffies = ActiveJiffies();
 
-// TODO: Read and return the number of running processes
-int LinuxParser::RunningProcesses() { return 0; }
+  long del_total_jiffies = total_jiffies  - prev_total_jiffies;
+  long del_active_jiffies = total_active_jiffies - prev_active_jiffies;
+  float cpu_utilization = del_active_jiffies / (float) del_total_jiffies;
+  prev_total_jiffies = total_jiffies;
+  prev_active_jiffies = total_active_jiffies;
+  return cpu_utilization;
+}
+
+// Read and return the total number of processes
+int LinuxParser::TotalProcesses() {
+  string os_path = kProcDirectory + kStatFilename;
+  string label = "processes";
+  int total_procs = std::stoi(GetValueFromKey(label, os_path));
+  return total_procs;
+}
+// Read and return the number of running processes
+int LinuxParser::RunningProcesses() {
+  string os_path = kProcDirectory + kStatFilename;
+  string label = "procs_running";
+  int running_procs = std::stoi(GetValueFromKey(label, os_path));
+  return running_procs;
+}
 
 // TODO: Read and return the command associated with a process
 // REMOVE: [[maybe_unused]] once you define the function

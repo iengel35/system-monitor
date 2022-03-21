@@ -1,3 +1,5 @@
+#include "linux_parser.h"
+
 #ifndef PROCESSOR_H
 #define PROCESSOR_H
 
