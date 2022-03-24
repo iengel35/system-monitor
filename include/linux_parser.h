@@ -47,7 +47,7 @@ long int* GetCPUJiffies(long int* jiffy_array);
 long Jiffies();
  long ActiveJiffies();
 long ActiveJiffies(long int* jiffy_array);
-long ActiveJiffies(int pid);
+long ActiveSeconds(int pid);
 long IdleJiffies(long int* jiffy_array);
 
 // Processes

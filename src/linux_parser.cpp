@@ -141,9 +141,27 @@ long LinuxParser::Jiffies() {
   return ActiveJiffies(jiffy_array) + IdleJiffies(jiffy_array);
 }
 
-// TODO: Read and return the number of active jiffies for a PID
-// REMOVE: [[maybe_unused]] once you define the function
-long LinuxParser::ActiveJiffies(int pid[[maybe_unused]]) { return 0; }
+// Read and return the number of active seconds for a PID
+// https://man7.org/linux/man-pages/man5/proc.5.html
+// https://stackoverflow.com/questions/16726779/how-do-i-get-the-total-cpu-usage-of-an-application-from-proc-pid-stat/16736599#16736599
+// active time = (utime + stime + cutime + cstime) / clock frequency
+long LinuxParser::ActiveSeconds(int pid) {
+  string line;
+  int start_idx = 13;
+  int last_idx = 16;
+  long temp_time, active_time;
+  std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
+  if (stream.is_open()) {
+    std::getline(stream, line);
+    std::istringstream linestream(line);
+    for (int i=0; i <= last_idx; i++) {
+      linestream >> temp_time;
+      if (i >= start_idx)
+        active_time += temp_time;
+    }
+  }
+  return active_time / sysconf(_SC_CLK_TCK);
+}
 
 // Read and return the number of active jiffies for the system
 long LinuxParser::ActiveJiffies() {
@@ -173,7 +191,6 @@ long LinuxParser::IdleJiffies(long int* jiffy_array) {
 }
 
 // Read and return CPU utilization
-//vector<string> LinuxParser::CpuUtilization() {
 float LinuxParser::CpuUtilization() {
   static long prev_total_jiffies = 0;
   static long prev_active_jiffies = 0;
@@ -203,22 +220,51 @@ int LinuxParser::RunningProcesses() {
   return running_procs;
 }
 
-// TODO: Read and return the command associated with a process
-// REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::Command(int pid[[maybe_unused]]) { return string(); }
+// Read and return the command associated with a process
+string LinuxParser::Command(int pid) {
+  string line;
+  std::ifstream stream(kProcDirectory + std::to_string(pid) + kCmdlineFilename);
+  if (stream.is_open()) {
+    std::getline(stream, line);
+  }
+  return line;
+}
 
-// TODO: Read and return the memory used by a process
-// REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::Ram(int pid[[maybe_unused]]) { return string(); }
+// Read and return the memory used by a process
+string LinuxParser::Ram(int pid) {
+  string key = "VmSize:";
+  string os_path = kProcDirectory + std::to_string(pid) + kStatusFilename;
+  string ram = GetValueFromKey(key, os_path);
+  return ram;
+}
 
-// TODO: Read and return the user ID associated with a process
-// REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::Uid(int pid[[maybe_unused]]) { return string(); }
+// Read and return the user ID associated with a process
+string LinuxParser::Uid(int pid) {
+  string key = "Uid:";
+  string os_path = kProcDirectory + std::to_string(pid) + kStatusFilename;
+  string uid = GetValueFromKey(key, os_path);
+  return uid;
+}
+// TODO
+// Read and return the user associated with a process
+string LinuxParser::User(int pid) {
+  string uid = Uid(pid);
+  return uid;
+}
 
-// TODO: Read and return the user associated with a process
-// REMOVE: [[maybe_unused]] once you define the function
-string LinuxParser::User(int pid[[maybe_unused]]) { return string(); }
-
-// TODO: Read and return the uptime of a process
-// REMOVE: [[maybe_unused]] once you define the function
-long LinuxParser::UpTime(int pid[[maybe_unused]]) { return 0; }
+// Read and return the uptime of a process
+// Calculated as system uptime - the time after startup a process began.
+long LinuxParser::UpTime(int pid) {
+  string line;
+  int time_idx = 21;
+  long temp_time;
+  std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
+  if (stream.is_open()) {
+    std::getline(stream, line);
+    std::istringstream linestream(line);
+    for (int i=0; i <= time_idx; i++)
+      linestream >> temp_time;
+  }
+  long proc_uptime =  UpTime() - (temp_time / sysconf(_SC_CLK_TCK));
+  return proc_uptime;
+}
