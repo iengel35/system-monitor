@@ -245,26 +245,39 @@ string LinuxParser::Uid(int pid) {
   string uid = GetValueFromKey(key, os_path);
   return uid;
 }
-// TODO
+
 // Read and return the user associated with a process
 string LinuxParser::User(int pid) {
   string uid = Uid(pid);
-  return uid;
+  string line, name;
+  char x;
+  int id;
+  std::ifstream stream(kPasswordPath);
+  if (stream.is_open()) {
+    while (std::getline(stream, line, ':')) {
+      std::istringstream linestream(line);
+      linestream >> name >> x >> id;
+      if (id == std::stoi(uid)) {
+        return name;
+      }
+    }
+  }
 }
 
 // Read and return the uptime of a process
 // Calculated as system uptime - the time after startup a process began.
 long LinuxParser::UpTime(int pid) {
   string line;
-  int time_idx = 21;
+  int time_idx = 22;
   long temp_time;
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
   if (stream.is_open()) {
     std::getline(stream, line);
     std::istringstream linestream(line);
-    for (int i=0; i <= time_idx; i++)
+    for (int i=1; i <= time_idx; i++)
       linestream >> temp_time;
   }
-  long proc_uptime =  UpTime() - (temp_time / sysconf(_SC_CLK_TCK));
+  long timestamp_seconds = temp_time /  sysconf(_SC_CLK_TCK);
+  long proc_uptime =  UpTime() - timestamp_seconds;
   return proc_uptime;
 }
