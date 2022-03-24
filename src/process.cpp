@@ -12,26 +12,17 @@ using std::to_string;
 using std::vector;
 
 // Constructor to populate process pid
-Process::Process(int pid) : pid_(pid) {}
+Process::Process(int pid) : pid_(pid) {
+  cpu_utilization_ = CpuUtilization();
+}
 
 // Return this process's ID
 int Process::Pid() { return pid_; }
 
 // Return this process's CPU utilization
 float Process::CpuUtilization() {
-  static long prev_total_uptime = 0;
-  static long prev_active_seconds = 0;
   long total_active_seconds = LinuxParser::ActiveSeconds(pid_);
-  long uptime = UpTime();
-
-  long del_total_uptime = uptime  - prev_total_uptime;
-  long del_active_seconds = total_active_seconds - prev_active_seconds;
-  if ( del_active_seconds > 0)
-    cpu_utilization_ = 100 * (del_total_uptime / (float) del_active_seconds);
-  else
-    cpu_utilization_ = 0;
-  prev_total_uptime = uptime_;
-  prev_active_seconds = total_active_seconds;
+  cpu_utilization_ =  (float) total_active_seconds /  UpTime();
   return cpu_utilization_;
 }
 
@@ -55,8 +46,7 @@ long int Process::UpTime() { return LinuxParser::UpTime(pid_); }
 // Overload the "less than" comparison operator for Process objects
 // Return true if this process' CPU Utilization is < the other's.
 bool Process::operator<(Process const& a) const {
-  float other_cpu_util = a.GetCpuUtilization();
-  if (cpu_utilization_ < other_cpu_util)
+  if (cpu_utilization_ > a.GetCpuUtilization())
     return true;
   return false;
 }

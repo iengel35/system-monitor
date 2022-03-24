@@ -149,15 +149,21 @@ long LinuxParser::ActiveSeconds(int pid) {
   string line;
   int start_idx = 13;
   int last_idx = 16;
-  long temp_time, active_time;
+  string temp_time;
+  long active_time = 0;
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
   if (stream.is_open()) {
-    std::getline(stream, line);
-    std::istringstream linestream(line);
+    // std::getline(stream, line);
+    // std::istringstream linestream(line);
+    // for (int i=0; i <= last_idx; i++) {
+    //   linestream >> temp_time;
+    //   if (i >= start_idx)
+    //     active_time += std::stol(temp_time);
+    // }
     for (int i=0; i <= last_idx; i++) {
-      linestream >> temp_time;
+      std::getline(stream, temp_time, ' ');
       if (i >= start_idx)
-        active_time += temp_time;
+        active_time += std::stol(temp_time);
     }
   }
   return active_time / sysconf(_SC_CLK_TCK);
@@ -249,15 +255,20 @@ string LinuxParser::Uid(int pid) {
 // Read and return the user associated with a process
 string LinuxParser::User(int pid) {
   string uid = Uid(pid);
-  string line, name;
-  char x;
-  int id;
+  string line;
+  string name, x, id;
   std::ifstream stream(kPasswordPath);
   if (stream.is_open()) {
-    while (std::getline(stream, line, ':')) {
-      std::istringstream linestream(line);
-      linestream >> name >> x >> id;
-      if (id == std::stoi(uid)) {
+    while (std::getline(stream, line)) {
+      // Break string by :
+      string delim = ":";
+      int start_idx = 0;
+      int end_idx = line.find(delim);
+      name = line.substr(start_idx, end_idx - start_idx);
+      start_idx = end_idx + 3;
+      end_idx = line.find(delim, start_idx);
+      id = line.substr(start_idx, end_idx - start_idx);
+      if (id.compare(uid) == 0) {
         return name;
       }
     }
@@ -268,16 +279,17 @@ string LinuxParser::User(int pid) {
 // Calculated as system uptime - the time after startup a process began.
 long LinuxParser::UpTime(int pid) {
   string line;
-  int time_idx = 22;
-  long temp_time;
+  int time_idx = 21;
+  string temp_time;
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
   if (stream.is_open()) {
     std::getline(stream, line);
     std::istringstream linestream(line);
-    for (int i=1; i <= time_idx; i++)
+    for (int i=0; i <= time_idx; i++)
       linestream >> temp_time;
   }
-  long timestamp_seconds = temp_time /  sysconf(_SC_CLK_TCK);
+  long start_time = std::stol(temp_time);
+  long timestamp_seconds = start_time /  sysconf(_SC_CLK_TCK); //timestamp in clock ticks, dive by Hz to get seconds
   long proc_uptime =  UpTime() - timestamp_seconds;
   return proc_uptime;
 }
