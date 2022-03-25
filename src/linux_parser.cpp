@@ -26,6 +26,7 @@ string LinuxParser::GetValueFromKey(string label, string os_path) {
       }
     }
   }
+  return "";
 }
 
 // An example of how to read data from the filesystem
@@ -153,13 +154,6 @@ long LinuxParser::ActiveSeconds(int pid) {
   long active_time = 0;
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
   if (stream.is_open()) {
-    // std::getline(stream, line);
-    // std::istringstream linestream(line);
-    // for (int i=0; i <= last_idx; i++) {
-    //   linestream >> temp_time;
-    //   if (i >= start_idx)
-    //     active_time += std::stol(temp_time);
-    // }
     for (int i=0; i <= last_idx; i++) {
       std::getline(stream, temp_time, ' ');
       if (i >= start_idx)
@@ -240,8 +234,8 @@ string LinuxParser::Command(int pid) {
 string LinuxParser::Ram(int pid) {
   string key = "VmSize:";
   string os_path = kProcDirectory + std::to_string(pid) + kStatusFilename;
-  string ram = GetValueFromKey(key, os_path);
-  return ram;
+  int ram = stoi(GetValueFromKey(key, os_path)) / 1000; // Convert KB to MB
+  return std::to_string(ram);
 }
 
 // Read and return the user ID associated with a process
@@ -273,6 +267,7 @@ string LinuxParser::User(int pid) {
       }
     }
   }
+  return "";
 }
 
 // Read and return the uptime of a process
